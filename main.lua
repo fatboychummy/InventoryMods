@@ -141,6 +141,7 @@ for i = 1,#tofind do
   end
 end
 
+
 local name = manipFuncs.getName()
 local inv = manipFuncs.getInventory()
 local ender = manipFuncs.getEnder()
@@ -148,6 +149,14 @@ local ender = manipFuncs.getEnder()
 local mods = {}
 copy(custom.modules,mods)
 print(textutils.serialise(mods))
+local tell = function(stuff)
+  local a,b = pcall(manipFuncs.tell,stuff)
+  if not a then
+    printError("Your chat-recorder is either missing or not bound properly.")
+  end
+end
+
+
 
 local function parseModules(str)
   for k,v in pairs(mods) do
@@ -165,7 +174,8 @@ end
 local function runModule(mod,tab)
   getChests()
   local a = dofile(modulesLocation..mod)
-  a(tab,chests,inv,manipFuncs.tell)
+  --TODO:make the 'pushed' tell function have a check to make sure the recorder is bound to the player.
+  a(tab,chests,inv,tell)
 end
 
 
@@ -180,11 +190,13 @@ local function parse(tab)
     runModule(module,tab)
   else
     print("Module does not exist!")
+    tell("Module does not exist!")
   end
 end
 
 
 local function main()
+  tell("Ready.")
   while true do
     local ev = {os.pullEvent(custom.preferredDetectionMethod)}
     if ev[2] == name then
@@ -200,4 +212,10 @@ end
 
 
 --TODO: Pcall main and handle errors.
-main()
+local a,err = pcall(main)
+
+if not a then
+  tell("The program has stopped with error "..err.."... Rebooting.")
+  os.sleep(2)
+  os.reboot()
+end
