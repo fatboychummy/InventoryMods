@@ -34,3 +34,6 @@ The computer, manipulator(s), and chatbox must all be connected on the same netw
 
 6. You should be ready to go!  Run the main program again and you should see a message saying "Ready" in the chat-bar.  Test the program by simply saying "\<prefix> get cobblestone 1".  You should get 1 cobblestone in your inventory.
 
+
+## Additional Info
+Additional info can be found on this git's Wiki.  This includes module syntax and more.
