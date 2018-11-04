@@ -6,12 +6,16 @@
 
 local version = 0.01
 local modules = {}
-local modulesLocation = "/modules/"
 local chests = {}
-local manip = false
 local manipFuncs = {}
+local dynaStore = false
+local dataLocation = "/data/"
+local modulesLocation = "/modules/"
 local customFileName = "customization"
+local dynaName = "dynaStore"
+local manip = false
 local custom = fs.exists(customFileName)
+
 
 local function copy(a,b)
   assert(type(a) == "table","copy: first input is not a table.")
@@ -29,12 +33,30 @@ local function ao(wrt,h)
   h.writeLine(wrt)
 end
 
+local function saveDyna()
+  local h = fs.open(dataLocation..dynaName,"w")
+  if h then
+    h.write(textutils.serialize(dynaStore))
+    h.close()
+  end
+end
+
+local function loadDyna()
+  local h = fs.open(dataLocation..dynaName,"r")
+  if h then
+    dynaStore = textutils.unserialize(h.readAll())
+    h.close()
+  else
+    dynaStore = false
+  end
+end
+
 local function writeCustomization(file)
   local h = fs.open(file,"w")
   ao("return {",h)
-  ao("  preferredDumpChest = false,",h)
   ao("  manipulators = {},",h)
-  ao("  preferredDetectionMethod = \"command\", --The event created by whatever chat recorder you are using.  It is seriously recommended you don't change this.",h)
+  ao("  preferredDetectionMethod = \"command\", --The event created by whatever chat recorder you are using.  It is seriously recommended you don't change this (until further notice).",h)
+  ao("  moduleLocation = \"/modules/\",",h)
   ao("  prefix = \"i\",",h)
   ao("}",h)
   h.flush()
@@ -48,7 +70,7 @@ local function moveCustomization(a)
   local d = c:match("%d+")
   print("This program will mark the line (line "..d..") with a comment.")
   d = tonumber(d)
-  assert(type(d) == "number","This should not happen. Please send a signal flare to fatboychummy")
+  assert(type(d) == "number","This should not happen. Please send a signal flare to fatboychummy (" .. tostring( d ) .. ")")
   local fileName = "BAD-"..customFileName
   local h1 = fs.open(customFileName,"r")
   local h2 = fs.open(fileName,"w")
@@ -64,7 +86,7 @@ local function moveCustomization(a)
   end
   h1.close()
   h2.close()
-  print("File moved")
+  print("File moved",fileName)
   fs.delete(customFileName)
   writeCustomization(customFileName)
   print("All done")
@@ -91,6 +113,9 @@ end
 
 
 do
+  loadDyna()
+  if not dynaStore then loadDyna() end
+  if not dynaStore then dynaStore = {} end
   local tmods = fs.list(modulesLocation)
   for i = 1,#tmods do
     local h = fs.open(modulesLocation..tmods[i],"r")
@@ -98,6 +123,9 @@ do
     local no = h.readLine()
     h.close()
     custom.modules[tmods[i]] = textutils.unserialize(no)
+    if not dynaStore[tmods[i]] then
+      dynaStore[tmods[i]] = {}
+    end
   end
 end
 
@@ -174,8 +202,8 @@ end
 local function runModule(mod,tab)
   getChests()
   local a = dofile(modulesLocation..mod)
-  --TODO:make the 'pushed' tell function have a check to make sure the recorder is bound to the player.
-  a(tab,chests,inv,tell)
+  a(tab,chests,inv,tell,dynaStore[mod])
+  saveDyna()
 end
 
 
@@ -215,7 +243,11 @@ end
 local a,err = pcall(main)
 
 if not a then
-  tell("The program has stopped with error "..err.."... Rebooting.")
+  if err == "Terminated" then
+    tell("Modu has been terminated")
+    return
+  end
+  tell("Modu has stopped with error "..err.."... Rebooting.")
   os.sleep(2)
   os.reboot()
 end
