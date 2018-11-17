@@ -15,6 +15,7 @@ local customFileName = "customization"
 local dynaName = "dynaStore"
 local manip = false
 local custom = fs.exists(customFileName)
+local running = false
 
 
 local function copy(a,b)
@@ -202,7 +203,13 @@ end
 local function runModule(mod,tab)
   getChests()
   local a = dofile(modulesLocation..mod)
-  a(tab,chests,inv,tell,dynaStore[mod])
+  if mod == "help.lua" then
+    a(tab,chests,inv,tell,dynaStore[mod],mods)
+  elseif mod == "debug.lua" then
+    a(tab,chests,inv,tell,dynaStore,mods)
+  else
+    a(tab,chests,inv,tell,dynaStore[mod])
+  end
   saveDyna()
 end
 
@@ -215,11 +222,12 @@ local function parse(tab)
   local module = parseModules(tab[1])
   print("parsed:",tab[1]..", got",module)
   if module then
-    runModule(module,tab)
+    return module,tab
   else
     print("Module does not exist!")
     tell("Module does not exist!")
   end
+  return false
 end
 
 
@@ -229,18 +237,42 @@ local function main()
     local ev = {os.pullEvent(custom.preferredDetectionMethod)}
     if ev[2] == name then
       if ev[3] == custom.prefix then
-        parse(ev[4])
+        local mod,tab = parse(ev[4])
+        if running and mod then
+          tell("Module " .. tostring(mod) .. " is currently running.")
+        else
+          if mod then
+            os.queueEvent("RUN_MODULE",mod,tab)
+          end
+        end
       end
     end
     print("---")
   end
 end
 
+local function co()
+  while true do
+    local ev = {os.pullEvent("RUN_MODULE")}
+    runModule(ev[2],ev[3])
+    os.queueEvent("MODULE_COMPLETE")
+  end
+end
+
+local function co2()
+  while true do
+    local ev = {os.pullEvent()}
+    if ev[1] == "RUN_MODULE" then
+      running = ev[2]
+    elseif ev[1] == "MODULE_COMPLETE" then
+      running = false
+    end
+  end
+end
 
 
 
---TODO: Pcall main and handle errors.
-local a,err = pcall(main)
+local a,err = pcall(parallel.waitForAny,main,co,co2)
 
 if not a then
   if err == "Terminated" then
