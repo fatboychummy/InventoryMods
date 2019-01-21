@@ -187,7 +187,7 @@ return function (input,chests,inventory,tell,dynaStore)
     if input[4] then
       damage = tonumber(input[7])
       if damage and type(damage) ~= "number" and string.lower(damage) ~= "nil" then tell("Expected damage value or nil as input 7") return end
-    end
+    end--test
     if input[2] == "push" then
       move(input[3],input[4],item,count,damage)
     elseif input[2] == "pull" then
