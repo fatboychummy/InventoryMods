@@ -1,37 +1,346 @@
 --[[
   0.01
-  Started a new thing!
+  [re]Started a new thing!
 ]]
 
+local dataLocation = false        -- Location of data, defaults to "/data/"
+local modulesLocation = false     -- Location of modules, defaults to "/data/modules/"
+local customFileName = false      -- Location of 'customization' file, defaults to "/data/custom.modu"
+local dynaName = false            -- Location of DynaStore, defaults to "/data/dyna.modu"
+local manipulatorOverride = false -- [Not currently working!]If you require a specific manipulator, change this value to the name of the manipulator on the network
 
-local version = 0.01
-local modules = {}
-local chests = {}
-local manipFuncs = {}
-local dynaStore = false
-local dataLocation = "/data/"
-local modulesLocation = "/modules/"
-local customFileName = "customization"
-local dynaName = "dynaStore"
-local manip = false
-local custom = fs.exists(customFileName)
-local running = false
+local version = 001               -- Version number
+local chests = {}                 -- All chest names stored in a table.
+local allitems = {}               -- All items stored in a table (fast cache :tm:).
+local chestCache = {}             -- NOT REQUIRED, DELET DELET DELET?
+local modules = {}                -- Modules, stored as a table.
+local manipFuncs = {}             -- Manipulator functions returned
+
+local dynaStore = false           -- DynaStore data
+local manip = false               -- manipulator confusion DELET?
+local custom = false              -- customization DELET?
+local running = false             -- DELET?
+
+local functionsNeeded = {
+  manipulator = {
+    "tell",
+    "getInventory",
+    "getEnder",
+    "getName",
+    "capture",
+    "clearCaptures",
+  }
+}
 
 
-local function copy(a,b)
+
+local function dCopy(a,b)
+  --DeepCopy
   assert(type(a) == "table","copy: first input is not a table.")
   for k,v in pairs(a) do
     if type(v) == "table" then
-      b[k] = {}
-      copy(a[k],b[k])
+      b[k] = {}--If table, recursive copy
+      dCopy(a[k],b[k])
     else
       b[k] = v
     end
   end
 end
 
-local function ao(wrt,h)
-  h.writeLine(wrt)
+local function tell(stuff)
+  local lines = {}
+  if stuff:len() > 100 then
+    local o = 1
+    for i = 1,stuff:len(),100 do
+      lines[o] = stuff:sub(i,i+99)
+      o = o + 1
+    end
+  else
+    lines[1] = stuff
+  end
+  for i = 1,#lines do
+    local a,b = pcall(manipFuncs.tell,lines[i])
+    if not a then
+      printError("Your chat-recorder is either missing or not bound properly.")
+      term.setTextColor(colors.yellow)
+      print(b)
+      term.setTextColor(colors.white)
+    end
+  end
+end
+
+local function doErr(func,cont)
+  local err = "ERR:" .. tostring(func) .. ": " .. tostring(cont)
+  tell(err)
+  error(err)
+end
+
+local function overWriteMain(variable,equals)
+  --Checks for instances of "local" as first word
+  --on a line.  If so, checks variable
+  --if == variable, update it to be equal to
+  -- "equals"
+  --Assumes only major variables (variables at 'root' level)
+  local declaration = "local " .. variable
+  local find = "^" .. declaration
+  local h = fs.open(shell.getRunningProgram(),"r")
+  --If open...
+  if h then
+
+    --load lines of program into data
+    local data = {}
+    local line = h.readLine()
+    local o = 0
+    repeat
+      o = o + 1
+      data[o] = line
+      line = h.readLine()
+    until not line
+    h.close()
+
+
+
+    --search through the data for the variable.
+    o = -1 --if o == -1 after searching, failed.
+    for i = 1,#data do
+      if data[i]:match("^local ") then
+        local a = data[i]:gmatch("%w+")
+        a()
+        local var = a()
+        a = nil
+        --if the variable we found is named "variable" then
+        if var == variable then
+          -- we found our variable
+          o = i
+          break
+        end
+      end
+    end
+    if o == -1 then
+      doErr("overWriteMain","Failed to find variable " .. tostring(variable))
+      return false
+    else
+      declaration = declaration .. " = "
+      if type(equals) == "string" then
+        declaration = declaration .. "\"" .. equals .. "\""
+      elseif type(equals) == "table" then
+        declaration = declaration .. textutils.serialize(equals)
+      elseif type(equals) == "number" or type(equals) == "boolean" then
+        declaration = declaration .. tostring(equals)
+      else
+        doErr("overWriteMain","Unsupported type (" .. type(equals) .. ")")
+        return false
+      end
+      data[o] = declaration
+      local h = fs.open(shell.getRunningProgram(),"w")
+      if h then
+        for i = 1,#data do
+          h.writeLine(data[i])
+        end
+        h.close()
+        return true
+      else
+        doErr("overWriteMain","No handle (2)")
+        return false
+      end
+    end
+  else
+    doErr("overWriteMain","No handle (1).")
+    return false
+  end
+end
+
+--[[
+local dataLocation = false
+local modulesLocation = false
+local customFileName = false
+local dynaName = false
+local chestSaveName = false
+
+local dynaStore = false
+local manip = false
+local custom = false
+local running = false
+]]
+
+
+--Check if the setup is valid (Function will overwrite variables for faster startup times.)
+local function checkSetup()
+  -----------------------------this boio checks variables and updates them.
+  local function check()
+    local f = true
+    if dataLocation then
+      print("Data Location is specified, checking.")
+      if type(dataLocation) == "string" then
+        assert(dataLocation:match("^/.+/$"),"Cannot run; variable dataLocation: expected absolute path to folder. (Must start and end in '/').")
+        print("dataLocation is valid.")
+      else
+        doErr("checkSetup","Cannot run; variable dataLocation is of incorrect type.")
+      end
+    else
+      f = false
+      print("dataLocation is false.")
+      overWriteMain("dataLocation","/data/")
+      print("updated")
+    end
+    if modulesLocation then
+      if type(modulesLocation) == "string" then
+        assert(modulesLocation:match("^/.+/$"),"Cannot run; variable modulesLocation: expected absolute path to folder. (Must start and end in '/').")
+        print("modulesLocation is valid.")
+      else
+        doErr("checkSetup","Cannot run; variable modulesLocation is of incorrect type.")
+      end
+    else
+      f = false
+      print("modulesLocation is false.")
+      overWriteMain("modulesLocation","/data/modules/")
+      print("updated")
+    end
+    if customFileName then
+      if type(customFileName) == "string" then
+        assert(customFileName:match("^/.+%.modu$"),"Cannot run; variable customFileName: expected absolute path to file, ending with file-extension '.modu'.")
+        print("customFileName is valid.")
+      else
+        doErr("checkSetup","Cannot run; variable customFileName is of incorrect type.")
+      end
+    else
+      f = false
+      print("customFileName is false.")
+      overWriteMain("customFileName","/data/custom.modu")
+      print("updated")
+    end
+    if dynaName then
+      if type(dynaName) == "string" then
+        assert(dynaName:match("^.+%.modu$"),"Cannot run; variable dynaName:")
+        print("dynaName is valid.")
+      else
+        doErr("checkSetup","Cannot run; variable dynaName is of incorrect type.")
+      end
+    else
+      f = false
+      print("dynaName is false.")
+      overWriteMain("dynaName","/data/dyna.modu")
+      print("updated")
+    end
+
+    return f
+  end
+
+  --Start this stuff...
+  local vars = {"dataLocation","modulesLocation","customFileName","dynaName"}
+  if not dataLocation or not modulesLocation or not customFileName or not dynaName then
+    print("Setup is invalid (First run?)")
+    check()
+    print("Setup should be valid.  Rebooting.")
+    os.sleep(3)
+    os.reboot()
+  else
+    if not check() then
+      print("Setup was invalid, rebooting now.")
+    end
+    print("Setup is valid.")
+  end
+end
+
+local function findFunctionsInPeripherals(ttab)
+  local tab = dCopy(ttab,tab)
+
+  --[[
+    {
+      peripheralType = {
+        "peripheralFunc1",
+        "peripheralFunc2",
+        overridePeripheral = "peripheralFunc5",
+      },
+      peripheralType2 = {
+        "peripheralFunc3",
+        "peripheralFunc4",
+      }
+    }
+  ]]
+  local perip = {}
+
+
+  local function getPeriphs(tp)
+    local all = peripheral.getNames()
+    local perips = {}
+    for i = 1,#all do
+      if all[i]:find(tp) then
+        perips[#perips+1] = peripheral.wrap(all[i])
+      end
+    end
+    return perips
+  end
+
+  for k,v in pairs(tab) do
+    --[[
+      each k: peripheralType
+      each v: table of peripheralFuncs
+    ]]
+    assert(type(v) == "table","ERR:findFunctionsInPeripherals: Expected table, index " .. tostring(k))
+    local pers = getPeriphs(k)
+    if pers then
+      for k2,v2 in pairs(v) do
+        --[[
+          each k2: number index or string override
+          each v2: peripheralFunctionName
+        ]]
+        local grabbed = false
+        if type(k2) == "number" then
+          --No override
+          for i = 1,#pers do
+            --[[
+              each i: peripheral of type k
+            ]]
+            for k3,v3 in pairs(pers[i]) do
+              --[[
+                each k3: peripheralFunctionName of peripheral of type k
+                each v3: peripheralFunction of peripheral of type k
+              ]]
+              if k3 == v2 then
+                perip[k3] = v3
+                tab[k][k2] = nil
+                grabbed = true
+                break
+              end
+            end
+            if grabbed then break end
+          end
+        elseif type(k2) == "string" then
+          --Override
+          if peripheral.isPresent(k2) then
+            local ps = peripheral.wrap(k2)
+            for k3,v3 in pairs(ps) do
+              --[[
+                each k3: peripheralFunctionName of peripheral of type k
+                each v3: peripheralFunction of peripheral of type k
+              ]]
+              if k3 == v2 then
+                perip[k3] = v3
+                tab[k][k2] = nil
+                break
+              end
+            end
+          end
+        else
+          doErr("findFunctionsInPeripherals","Unexpected error ID 1")
+        end
+      end
+    end
+  end
+
+  for k,v in pairs(tab) do
+    local notThere = true
+    for k2,v2 in pairs(v) do
+      notThere = false
+      break
+    end
+    if notThere then
+      tab[k] = nil
+    end
+  end
+
+  return perip,tab
 end
 
 local function saveDyna()
@@ -52,68 +361,7 @@ local function loadDyna()
   end
 end
 
-local function writeCustomization(file)
-  local h = fs.open(file,"w")
-  ao("return {",h)
-  ao("  manipulators = {},",h)
-  ao("  preferredDetectionMethod = \"command\", --The event created by whatever chat recorder you are using.  It is seriously recommended you don't change this (until further notice).",h)
-  ao("  moduleLocation = \"/modules/\",",h)
-  ao("  prefix = \"i\",",h)
-  ao("}",h)
-  h.flush()
-  h.close()
-end
-
-local function moveCustomization(a)
-  printError("Warning: Customization file error, moving it to a new location then creating another customization file.")
-  local b = a:find(":")
-  local c = a:sub(b+1)
-  local d = c:match("%d+")
-  print("This program will mark the line (line "..d..") with a comment.")
-  d = tonumber(d)
-  assert(type(d) == "number","This should not happen. Please send a signal flare to fatboychummy (" .. tostring( d ) .. ")")
-  local fileName = "BAD-"..customFileName
-  local h1 = fs.open(customFileName,"r")
-  local h2 = fs.open(fileName,"w")
-  local i = 1
-  local cur = h1.readLine()
-  while cur do
-    if i == d then
-      cur = cur.."--"..string.rep("!",15)
-    end
-    h2.writeLine(cur)
-    cur = h1.readLine()
-    i = i + 1
-  end
-  h1.close()
-  h2.close()
-  print("File moved",fileName)
-  fs.delete(customFileName)
-  writeCustomization(customFileName)
-  print("All done")
-end
-
-
-
-local function setup()
-  writeCustomization(customFileName)
-end
-
-if not custom then
-  setup()
-  print("System is set up.")
-  return 0
-else
-  ok,custom = pcall(dofile,customFileName)
-  if not ok or not custom or custom == {} then
-    moveCustomization(custom)
-    return 0
-  end
-  custom.modules = {}
-end
-
-
-do
+local function prepareDyna()
   loadDyna()
   if not dynaStore then loadDyna() end
   if not dynaStore then dynaStore = {} end
@@ -131,155 +379,6 @@ do
 end
 
 
-local function getChests()
-  local a = peripheral.getNames()
-  chests = {}
-  for i = 1,#a do
-    if a[i]:find("chest") or a[i]:find("shulker") then
-      chests[#chests+1] = a[i]
-    end
-  end
-end
-
-local tofind = {
-  "getEnder",
-  "tell",
-  "getName",
-  "getInventory",
-}
-
-assert(#custom.manipulators ~= 0,"Manipulators table is empty.")
-
-for i = 1,#custom.manipulators do
-  local c = custom.manipulators[i]
-  local cur = peripheral.wrap(c)
-  if cur then
-    for o = 1,#tofind do
-      if not manipFuncs[tofind[o]] and cur[tofind[o]] then
-        manipFuncs[tofind[o]] = cur[tofind[o]]
-        print("Found",tofind[o])
-      end
-    end
-  else
-    printError("Warning: Peripheral "..c.." does not exist.")
-  end
-end
-for i = 1,#tofind do
-  if manipFuncs[tofind[i]] == nil then
-    error("Failed to find the function:",tofind[i].."...  Make sure the proper modules are installed.")
-  end
-end
 
 
-local name = manipFuncs.getName()
-local inv = manipFuncs.getInventory()
-local ender = manipFuncs.getEnder()
-
-local mods = {}
-copy(custom.modules,mods)
-print(textutils.serialise(mods))
-local tell = function(stuff)
-  local a,b = pcall(manipFuncs.tell,stuff)
-  if not a then
-    printError("Your chat-recorder is either missing or not bound properly.")
-  end
-end
-
-
-
-local function parseModules(str)
-  for k,v in pairs(mods) do
-    print("Checking module:",k)
-    for i = 1,#v do
-      if str == v[i] then
-        return k,v
-      end
-    end
-  end
-  return false
-end
-
-
-local function runModule(mod,tab)
-  getChests()
-  local a = dofile(modulesLocation..mod)
-  if mod == "help.lua" then
-    a(tab,chests,inv,tell,dynaStore[mod],mods)
-  elseif mod == "debug.lua" then
-    a(tab,chests,inv,tell,dynaStore,mods)
-  else
-    a(tab,chests,inv,tell,dynaStore[mod])
-  end
-  saveDyna()
-end
-
-
-local function parse(tab)
-  print("Parsing...")
-  for i = 1,#tab do
-    tab[i] = tab[i]:lower()
-  end
-  local module = parseModules(tab[1])
-  print("parsed:",tab[1]..", got",module)
-  if module then
-    return module,tab
-  else
-    print("Module does not exist!")
-    tell("Module does not exist!")
-  end
-  return false
-end
-
-
-local function main()
-  tell("Ready.")
-  while true do
-    local ev = {os.pullEvent(custom.preferredDetectionMethod)}
-    if ev[2] == name then
-      if ev[3] == custom.prefix then
-        local mod,tab = parse(ev[4])
-        if running and mod then
-          tell("Module " .. tostring(mod) .. " is currently running.")
-        else
-          if mod then
-            os.queueEvent("RUN_MODULE",mod,tab)
-          end
-        end
-      end
-    end
-    print("---")
-  end
-end
-
-local function co()
-  while true do
-    local ev = {os.pullEvent("RUN_MODULE")}
-    runModule(ev[2],ev[3])
-    os.queueEvent("MODULE_COMPLETE")
-  end
-end
-
-local function co2()
-  while true do
-    local ev = {os.pullEvent()}
-    if ev[1] == "RUN_MODULE" then
-      running = ev[2]
-    elseif ev[1] == "MODULE_COMPLETE" then
-      running = false
-    end
-  end
-end
-
-
-
-local a,err = pcall(parallel.waitForAny,main,co,co2)
-
-if not a then
-  if err == "Terminated" then
-    tell("Modu has been terminated")
-    return
-  end
-  tell("Modu has stopped with error "..err.."... Rebooting.")
-  os.sleep(2)
-  os.reboot()
-end
+return 1
