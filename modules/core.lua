@@ -2,7 +2,7 @@
 {"get","grab","remove"}
 The syntax of ALL module files: line 2: table of module arguments, line 5: start of return <function> statement.  Make sure this portion is commented or it will error.
 ]]
-return function (input,chests,inventory,tell,dynaStore) --Functions will ALWAYS be passed these five values.
+return function (input,chests,inventory,tell) --Functions will ALWAYS be passed these four values.
   local arg = input[1]
   local item = input[2]
   local count = tonumber(input[3])
