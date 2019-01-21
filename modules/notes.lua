@@ -27,5 +27,7 @@ return function (input,_,_,tell,dynaStore)
     end
     table.remove(dynaStore,input[3])
     tell("Removed note "..tostring(input[3]))
+  else
+    tell( "Unexpected command: "..tostring( input[ 2 ] ) )
   end
 end
