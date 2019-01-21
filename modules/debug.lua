@@ -2,7 +2,7 @@
 {"debug"}
 ]]
 
-return function (input,chests,inventory,tell,dynaStore,mods)
+return function (input,chests,inventory,tell,dynaStore,mods,chestCache,allItems)
   local function cSerialize(tb,spc)
     spc = spc or 0
     local i = 1
@@ -72,6 +72,29 @@ return function (input,chests,inventory,tell,dynaStore,mods)
       for i = 1,#t do
         tell(t[i])
       end
+    elseif input[3] == "itemcache" then
+      local count = 0
+      local count2 = 0
+      local itms = {}
+      for k, v in pairs(allItems) do
+        for k2, v2 in pairs(v) do
+          count2 = count2 + 1
+          count = v2.count + count
+          itms[v2.Display] = v2.count
+        end
+      end
+      tell("There is a total of " .. tostring(count) .. " items stored currently.")
+      tell("There are " .. count2 .." unique items.")
+      if input[4] and input[4] == "detailed" then
+        tell("This may take a while...")
+        for k,v in pairs(itms) do
+          tell(k .. ": " .. v)
+        end
+      end
+    elseif input[3] == "chestcache" then
+
+    else
+      tell("I do not understand wat de faq u want u dum shit")
     end
   elseif input[2] == "repeat" then
     tell("\\. "..table.concat(input," "))
