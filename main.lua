@@ -150,19 +150,28 @@ local function overWriteMain(variable,equals)
   end
 end
 
---[[
-local dataLocation = false
-local modulesLocation = false
-local customFileName = false
-local dynaName = false
-local chestSaveName = false
 
-local dynaStore = false
-local manip = false
-local custom = false
-local running = false
-]]
+local function makeCustomFile()
+  local h = fs.open(customFileName,"w")
+  local function ao(d)
+    h.writeLine(d)
+  end
+  ao("return {")
+  ao("  ")
+  ao("}")
+  h.close()
+end
 
+local function makeDyna()
+  local h = fs.open(dynaName,"w")
+  local function ao(d)
+    h.writeLine(d)
+  end
+  ao("{")
+  ao("  ")
+  ao("}")
+  h.close()
+end
 
 --Check if the setup is valid (Function will overwrite variables for faster startup times.)
 local function checkSetup()
@@ -223,6 +232,40 @@ local function checkSetup()
       print("updated")
     end
 
+    --Check for directories.
+    if f then
+      if fs.isDir(dataLocation) then
+        print("Data directory exists")
+      else
+        f = false
+        fs.makeDir(dataLocation)
+        print("Made directory " .. tostring(dataLocation))
+      end
+
+      if fs.isDir(modulesLocation) then
+        print("Modules directory exists")
+      else
+        f = false
+        fs.makeDir(modulesLocation)
+        print("Made directory " .. tostring(modulesLocation))
+      end
+
+      if fs.exists(customFileName) then
+        print("Customization file exists")
+      else
+        f = false
+        makeCustomFile()
+        print("Made file " .. tostring(customFileName))
+      end
+
+      if fs.exists(dynaName) then
+        print("Dynastore file exists")
+      else
+        f = false
+        makeDyna()
+        print("Made file " .. tostring(dynaName))
+      end
+    end
     return f
   end
 
@@ -237,13 +280,16 @@ local function checkSetup()
   else
     if not check() then
       print("Setup was invalid, rebooting now.")
+      os.sleep(3)
+      os.reboot()
     end
     print("Setup is valid.")
   end
 end
 
 local function findFunctionsInPeripherals(ttab)
-  local tab = dCopy(ttab,tab)
+  local tab = {}
+  dCopy(ttab,tab)
 
   --[[
     {
@@ -343,6 +389,13 @@ local function findFunctionsInPeripherals(ttab)
   return perip,tab
 end
 
+local function checkFuncTable(tab)
+  for k,v in pairs(tab) do
+    return false,k,v
+  end
+  return true
+end
+
 local function saveDyna()
   local h = fs.open(dataLocation..dynaName,"w")
   if h then
@@ -378,7 +431,29 @@ local function prepareDyna()
   end
 end
 
+local function getChests()
+  local a = peripheral.getNames()
+  chests = {}
+  for i = 1,#a do
+    if a[i]:find("chest") or a[i]:find("shulker") then
+      chests[#chests+1] = a[i]
+    end
+  end
+end
 
 
 
-return 1
+local function main()
+  checkSetup()
+  getChests()
+  prepareDyna()
+  local df
+  manipFuncs,df = findFunctionsInPeripherals(functionsNeeded)
+  local a,b,c = checkFuncTable(df)
+  assert(a,"Could not find one of the required peripherals (" .. tostring(b) .. ", " .. tostring(c) ..")")
+    print("Completed")
+end
+
+main()
+
+return findFunctionsInPeripherals
