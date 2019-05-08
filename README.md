@@ -1,24 +1,6 @@
 # DISCONTINUED
 
-# DISCONTINUED
-
-# DISCONTINUED
-
-# DISCONTINUED
-
-# DISCONTINUED
-
-# DISCONTINUED
-
-# DISCONTINUED
-
-# DISCONTINUED
-
-# DISCONTINUED
-
-# DISCONTINUED
-
-Check out [Modu](https://github.com/fatboychummy/Modu) for the more updated version!
+### Check out [Modu](https://github.com/fatboychummy/Modu) for the more updated version!
 
 -----
 
